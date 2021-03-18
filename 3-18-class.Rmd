@@ -1,0 +1,111 @@
+---
+title: "Untitled"
+author: "Sarah Brashear"
+date: "3/18/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+library(tidyverse)
+library(primer.data)
+library(rstanarm)
+
+```
+
+## What is the average age of people in Massachusetts? 
+
+```{r}
+# Using trains data:
+# ?trains
+
+# view(trains)
+
+# For reference, the mean of age is 42ish
+# lowest age is 20, highest is 68
+
+# mean(trains$age)
+# 42.36522
+
+# Age is an integer 
+
+```
+
+Using Trains data to answer the question.
+-Population: Entire Massachusetts population
+-Sample: 115 people at commuter train stations
+-Ideal Preceptor table has 5 million rows, one for each person, and everyone's 
+age included
+-Representativeness - connecting our question to the population 
+-Problem: everyone in our sample is between 20 and 68, which isn't the full
+range of ages in the the whole state of MA
+-Survey conducted at commuter train stations - the demographic that uses these
+trains may not be perfectly repreresentative of the entire Mass population
+
+```{r}
+
+fit_obj <- stan_glm(data = trains, 
+                    formula = age ~ 1, 
+                    family = gaussian, 
+                    refresh = 0,
+                    seed = 10)
+
+```
+
+```{r}
+
+pe <- posterior_epred(object = fit_obj,
+                      newdata = tibble(constant = 1)) %>%
+  as_tibble()
+
+```
+
+```{r}
+pe %>% 
+  ggplot(aes(x = `1`)) +
+    geom_histogram(aes(y = after_stat(count/sum(count))),
+                   bins = 100) +
+    labs(title = "Posterior for Average Age of People from Massachusetts",
+         subtitle = "Average age likely between 40-45 years",
+         x = "Average Age",
+         y = "Probability",
+         caption = "Data source: Trains Data from Primer") + 
+    scale_x_continuous(labels = scales::number_format(accuracy = 1)) +
+    scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+    theme_classic()
+```
+
+If you met 10 random people, what would be the difference in age between 2nd oldest and 2nd youngest?
+
+```{r}
+newobs <- tibble(constant = rep(1, 10))
+
+pp <- posterior_predict(object = fit_obj,
+                        newdata = newobs) %>% 
+        as_tibble() %>%
+  rowwise() %>% 
+  mutate(diff = sort(c_across(), decreasing = FALSE)[9] -
+                sort(c_across(), decreasing = FALSE)[2]) 
+
+```
+
+```{r}
+
+pp %>%
+  ggplot(aes(x = `1`)) +
+    geom_histogram(aes(y = after_stat(count/sum(count))),
+                   bins = 100) +
+    labs(title = "Posterior for Age Difference",
+         subtitle = "Average age likely between 40-45 years",
+         x = "Difference in Age between 2nd Oldest and 2nd Youngest",
+         y = "Probability",
+         caption = "Data source: Trains Data from Primer") + 
+    scale_x_continuous(labels = scales::number_format(accuracy = 1)) +
+    scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+    theme_classic()
+
+# Don't know why we have negative values?
+  
+```
+
